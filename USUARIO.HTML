@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="es" data-bs-theme="dark"
+      style="--bs-body-font-family:'Barlow',system-ui,sans-serif;--bs-body-bg:#080d1c;--bs-body-bg-rgb:8,13,28;--bs-tertiary-bg:#0f1830;--bs-tertiary-bg-rgb:15,24,48;--bs-secondary-bg:#16213f;--bs-secondary-bg-rgb:22,33,63;--bs-border-color:#1e2b4d;--bs-secondary-color:#93a0c0;--bs-secondary-color-rgb:147,160,192">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="GameArena: consulta torneos de videojuegos, busca por juego y estado e inscríbete en los torneos abiertos.">
+    <meta name="theme-color" content="#050914">
+    <title>GameArena · Torneos oficiales</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🏆%3C/text%3E%3C/svg%3E">
+    <!-- Solo Bootstrap 5: el tema se ajusta con sus variables en la etiqueta <html>, sin hoja de estilos propia -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+</head>
+<body class="d-flex flex-column min-vh-100">
+
+<!--
+    GUÍA DE ESTILO RESUMIDA
+    Paleta: azul (marca) + oro (premios y cifras) sobre fondo azul noche. Tipografía: Barlow.
+    JERARQUÍA DE COLOR DE LOS BOTONES (de más a menos importante), con clases de Bootstrap:
+    1. btn-primary       azul sólido    -> acción principal de la pantalla (buscar, ver sus torneos)
+    2. btn-success       verde sólido   -> inscribirse (coincide con el estado ABIERTO)
+    3. btn-outline-light contorno claro -> acción secundaria (ver detalle, ver ficha)
+    4. btn-secondary     gris           -> acción terciaria (cerrar, quitar filtros)
+    Estados de torneo: verde ABIERTO · amarillo EN CURSO · gris FINALIZADO (siempre con texto y símbolo)
+-->
+
+<noscript><div class="alert alert-warning rounded-0 mb-0 text-center">Esta página necesita JavaScript para mostrar los torneos.</div></noscript>
+<a class="visually-hidden-focusable btn btn-warning position-absolute m-2" style="z-index:2000" href="#" onclick="document.getElementById('contenido').focus();return false">Saltar al contenido</a>
+
+<!-- ===================== CABECERA ===================== -->
+<nav class="navbar navbar-expand-lg bg-black sticky-top border-bottom border-primary border-2 py-2" aria-label="Navegación principal">
+    <div class="container">
+        <a class="navbar-brand d-flex align-items-center gap-2 fw-bolder fs-3 text-uppercase" href="#inicio">
+            <span class="d-inline-flex align-items-center justify-content-center bg-primary rounded-2" style="width:38px;height:38px"><i class="bi bi-trophy-fill text-warning fs-5"></i></span>GameArena
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menu" aria-controls="menu" aria-expanded="false" aria-label="Abrir menú">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="menu">
+            <ul class="navbar-nav ms-auto align-items-lg-center text-uppercase fw-bold small gap-lg-1">
+                <li class="nav-item"><a class="nav-link px-3" href="#inicio">Inicio</a></li>
+                <li class="nav-item"><a class="nav-link px-3" href="#torneos">Torneos</a></li>
+                <li class="nav-item"><a class="nav-link px-3" href="#jugadores">Jugadores</a></li>
+                <li class="nav-item"><a class="nav-link px-3" href="#videojuegos">Videojuegos</a></li>
+                <li class="nav-item"><a class="nav-link px-3" href="#filtros">Buscar</a></li>
+                <li class="nav-item ms-lg-2"><a class="nav-link px-3 py-2 rounded-2 bg-success text-white" href="#participaciones">Mis inscripciones</a></li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="bg-body-tertiary border-bottom">
+    <div class="container py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <nav aria-label="Dónde estás">
+            <ol class="breadcrumb mb-0 small">
+                <li class="breadcrumb-item"><a href="#inicio" class="text-decoration-none">GameArena</a></li>
+                <li class="breadcrumb-item active" aria-current="page" id="ubicacion">Inicio</li>
+            </ol>
+        </nav>
+        <div class="d-flex align-items-center gap-3 small">
+            <span id="live" class="text-uppercase fw-bold"></span>
+            <span id="estadoApi" class="badge text-bg-secondary">Conectando...</span>
+        </div>
+    </div>
+</div>
+<div id="avisoApi" class="alert alert-warning rounded-0 border-0 mb-0 py-2 small text-center d-none" role="status">
+    <i class="bi bi-info-circle me-1"></i><strong>Modo demostración:</strong> no se pudo conectar con <code>localhost:8080</code> (comprueba que Spring Boot esté arrancado y con <code>@CrossOrigin</code>). Se muestran datos de ejemplo.
+</div>
+
+<main class="flex-grow-1" id="contenido" tabindex="-1">
+
+    <!-- ===================== INICIO ===================== -->
+    <section id="inicio" class="seccion d-none">
+
+        <!-- Portada -->
+        <div class="position-relative overflow-hidden border-bottom border-primary border-4"
+             style="background:radial-gradient(ellipse at 12% 15%,rgba(37,99,235,.5),transparent 55%),radial-gradient(ellipse at 92% 85%,rgba(147,51,234,.35),transparent 50%),#050914">
+            <!-- IMAGEN: fondo de la portada (aprox. 1600x800, mejor oscura). Poner debajo de este comentario:
+                 <img src="img/portada.jpg" alt="" class="position-absolute top-0 start-0 w-100 h-100 object-fit-cover opacity-25"> -->
+            <div class="container position-relative py-5">
+                <div class="row align-items-center g-5 py-lg-4">
+                    <div class="col-lg-7">
+                        <span class="badge text-bg-primary text-uppercase px-3 py-2 mb-4"><i class="bi bi-broadcast me-2"></i>Plataforma oficial de torneos</span>
+                        <h1 class="display-2 fw-bolder text-uppercase lh-1 text-white mb-4">Compite en tus videojuegos favoritos</h1>
+                        <p class="lead text-white-50 mb-4 col-xl-10">Mira los torneos disponibles, elige uno abierto e inscríbete en un par de clics.</p>
+                        <div class="d-flex flex-wrap gap-3">
+                            <a class="btn btn-primary btn-lg px-4 text-uppercase fw-bold" href="#filtros"><i class="bi bi-search me-2"></i>Buscar torneos</a>
+                            <a class="btn btn-success btn-lg px-4 text-uppercase fw-bold" href="#participaciones"><i class="bi bi-pencil-square me-2"></i>Inscribirme</a>
+                        </div>
+                    </div>
+                    <div class="col-lg-5" id="destacado"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tira de videojuegos -->
+        <div class="bg-black border-bottom">
+            <div class="container py-3 d-flex align-items-center flex-wrap gap-2">
+                <span class="small text-uppercase fw-bold text-warning me-2"><i class="bi bi-controller me-1"></i>Elige tu juego</span>
+                <div class="d-flex flex-wrap gap-2" id="chipsJuegos"></div>
+            </div>
+        </div>
+
+        <!-- Cifras -->
+        <div class="bg-body-tertiary border-bottom">
+            <div class="container"><div class="row g-0 text-center" id="cifras"></div></div>
+        </div>
+
+        <div class="container py-5">
+
+            <!-- Próximos torneos abiertos -->
+            <div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-4">
+                <div>
+                    <div class="small text-uppercase fw-bold text-warning">Inscripciones abiertas</div>
+                    <h2 class="display-6 fw-bolder text-uppercase mb-0">Próximos torneos</h2>
+                </div>
+                <a class="btn btn-outline-light btn-sm" href="#torneos">Ver todos los torneos</a>
+            </div>
+            <div class="card bg-body-tertiary border-0 rounded-4 shadow-lg overflow-hidden mb-5"><ul class="list-group list-group-flush" id="proximos"></ul></div>
+
+            <!-- En directo -->
+            <div id="directoWrap" class="d-none mb-5">
+                <div class="d-flex align-items-center gap-3 mb-4">
+                    <span class="spinner-grow spinner-grow-sm text-danger" role="status"><span class="visually-hidden">En directo</span></span>
+                    <h2 class="display-6 fw-bolder text-uppercase mb-0">En directo ahora</h2>
+                </div>
+                <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4" id="directo"></div>
+            </div>
+
+            <!-- Ranking -->
+            <div id="podioWrap" class="d-none mb-5">
+                <div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-4">
+                    <div>
+                        <div class="small text-uppercase fw-bold text-warning">Ranking</div>
+                        <h2 class="display-6 fw-bolder text-uppercase mb-0">Jugadores más activos</h2>
+                    </div>
+                    <a class="btn btn-outline-light btn-sm" href="#jugadores">Ver todos los jugadores</a>
+                </div>
+                <div class="row g-4 align-items-end" id="podio"></div>
+            </div>
+
+            <!-- Cómo participar -->
+            <div class="text-center mb-4">
+                <div class="small text-uppercase fw-bold text-warning">Es muy fácil</div>
+                <h2 class="display-6 fw-bolder text-uppercase">Cómo participar</h2>
+            </div>
+            <div class="row row-cols-1 row-cols-md-3 g-4 mb-5">
+                <div class="col"><div class="card h-100 bg-body-tertiary border-0 rounded-4 shadow"><div class="card-body p-4 text-center">
+                    <div class="display-3 fw-bolder text-primary lh-1">01</div>
+                    <i class="bi bi-controller fs-2 text-warning"></i>
+                    <h3 class="h4 fw-bold text-uppercase mt-2">Elige un videojuego</h3>
+                    <p class="text-body-secondary">Valorant, League of Legends, Rocket League y más.</p>
+                    <a class="btn btn-outline-light btn-sm" href="#videojuegos">Ver videojuegos</a>
+                </div></div></div>
+                <div class="col"><div class="card h-100 bg-body-tertiary border-0 rounded-4 shadow"><div class="card-body p-4 text-center">
+                    <div class="display-3 fw-bolder text-primary lh-1">02</div>
+                    <i class="bi bi-search fs-2 text-warning"></i>
+                    <h3 class="h4 fw-bold text-uppercase mt-2">Encuentra tu torneo</h3>
+                    <p class="text-body-secondary">Filtra por videojuego y por estado.</p>
+                    <a class="btn btn-primary btn-sm" href="#filtros">Buscar torneos</a>
+                </div></div></div>
+                <div class="col"><div class="card h-100 bg-body-tertiary border-0 rounded-4 shadow"><div class="card-body p-4 text-center">
+                    <div class="display-3 fw-bolder text-primary lh-1">03</div>
+                    <i class="bi bi-check2-circle fs-2 text-warning"></i>
+                    <h3 class="h4 fw-bold text-uppercase mt-2">Inscríbete</h3>
+                    <p class="text-body-secondary">Apúntate a un torneo abierto en un clic.</p>
+                    <a class="btn btn-success btn-sm" href="#participaciones">Inscribirme</a>
+                </div></div></div>
+            </div>
+
+            <!-- Preguntas frecuentes -->
+            <div class="text-center mb-4">
+                <div class="small text-uppercase fw-bold text-warning">Dudas</div>
+                <h2 class="display-6 fw-bolder text-uppercase">Preguntas frecuentes</h2>
+            </div>
+            <div class="card bg-body-tertiary border-0 rounded-4 shadow-lg overflow-hidden mb-2 mx-auto col-lg-9">
+                <div class="accordion accordion-flush" id="faq" style="--bs-accordion-bg:transparent">
+                    <div class="accordion-item">
+                        <h3 class="accordion-header"><button class="accordion-button fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#f1" aria-expanded="true" aria-controls="f1">¿Cómo me inscribo en un torneo?</button></h3>
+                        <div id="f1" class="accordion-collapse collapse show" data-bs-parent="#faq"><div class="accordion-body text-body-secondary">Pulsa <strong class="text-success">Inscribirme</strong> en la tarjeta de un torneo abierto, o entra en «Mis inscripciones», elige tu jugador y el torneo y confirma.</div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h3 class="accordion-header"><button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#f2" aria-expanded="false" aria-controls="f2">¿Qué significa cada estado?</button></h3>
+                        <div id="f2" class="accordion-collapse collapse" data-bs-parent="#faq"><div class="accordion-body text-body-secondary"><span class="badge text-bg-success">● ABIERTO</span> admite inscripciones. <span class="badge text-bg-warning">▶ EN CURSO</span> ya ha empezado. <span class="badge text-bg-secondary">✔ FINALIZADO</span> ha terminado.</div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h3 class="accordion-header"><button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#f3" aria-expanded="false" aria-controls="f3">¿Puedo inscribirme en un torneo en curso o finalizado?</button></h3>
+                        <div id="f3" class="accordion-collapse collapse" data-bs-parent="#faq"><div class="accordion-body text-body-secondary">No. Solo los torneos con estado ABIERTO aceptan inscripciones.</div></div>
+                    </div>
+                    <div class="accordion-item">
+                        <h3 class="accordion-header"><button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#f4" aria-expanded="false" aria-controls="f4">¿Cómo encuentro torneos de mi videojuego?</button></h3>
+                        <div id="f4" class="accordion-collapse collapse" data-bs-parent="#faq"><div class="accordion-body text-body-secondary">Usa las etiquetas de videojuegos de Inicio o la sección «Buscar», que combina videojuego y estado.</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Llamada final -->
+        <div class="py-5 text-center" style="background:linear-gradient(135deg,#1d4ed8,#0b1b5c)">
+            <div class="container py-3">
+                <h2 class="display-5 fw-bolder text-uppercase text-white">¿Listo para competir?</h2>
+                <p class="lead text-white-50 mb-4">Tu próximo torneo te está esperando.</p>
+                <a class="btn btn-success btn-lg px-5 text-uppercase fw-bold" href="#participaciones">Inscribirme ahora</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===================== JUGADORES (solo consulta) ===================== -->
+    <section id="jugadores" class="seccion d-none">
+        <div class="position-relative overflow-hidden py-5 border-bottom border-primary border-3" style="background:radial-gradient(ellipse at 85% 0%,rgba(37,99,235,.45),transparent 55%),#050914">
+            <i class="bi bi-people position-absolute end-0 top-50 translate-middle-y me-5 text-primary opacity-25 d-none d-md-block" style="font-size:10rem" aria-hidden="true"></i>
+            <div class="container position-relative">
+                <div class="small text-uppercase fw-bold text-warning">Comunidad</div>
+                <h1 class="display-3 fw-bolder text-uppercase mb-1">Jugadores</h1>
+                <p class="lead text-body-secondary mb-0">Conoce a los jugadores de GameArena y en cuántos torneos participan.</p>
+            </div>
+        </div>
+        <div class="container py-5">
+            <div class="card bg-body-tertiary border-0 rounded-4 shadow-lg overflow-hidden"><div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" style="--bs-table-bg:transparent">
+                    <caption class="visually-hidden">Lista de jugadores</caption>
+                    <thead><tr class="text-uppercase small text-body-secondary"><th class="ps-4 py-3">Jugador</th><th>País</th><th>Torneos</th><th class="pe-4">Acciones</th></tr></thead>
+                    <tbody id="tbJugadores"></tbody>
+                </table>
+            </div></div>
+        </div>
+    </section>
+
+    <!-- ===================== VIDEOJUEGOS ===================== -->
+    <section id="videojuegos" class="seccion d-none">
+        <div class="position-relative overflow-hidden py-5 border-bottom border-primary border-3" style="background:radial-gradient(ellipse at 85% 0%,rgba(147,51,234,.4),transparent 55%),#050914">
+            <i class="bi bi-controller position-absolute end-0 top-50 translate-middle-y me-5 text-primary opacity-25 d-none d-md-block" style="font-size:10rem" aria-hidden="true"></i>
+            <div class="container position-relative">
+                <div class="small text-uppercase fw-bold text-warning">Catálogo</div>
+                <h1 class="display-3 fw-bolder text-uppercase mb-1">Videojuegos</h1>
+                <p class="lead text-body-secondary mb-0">Elige un videojuego para ver sus torneos.</p>
+            </div>
+        </div>
+        <div class="container py-5">
+            <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4" id="gridVideojuegos"></div>
+        </div>
+    </section>
+
+    <!-- ===================== TORNEOS ===================== -->
+    <section id="torneos" class="seccion d-none">
+        <div class="position-relative overflow-hidden py-5 border-bottom border-primary border-3" style="background:radial-gradient(ellipse at 85% 0%,rgba(37,99,235,.5),transparent 55%),#050914">
+            <i class="bi bi-trophy position-absolute end-0 top-50 translate-middle-y me-5 text-primary opacity-25 d-none d-md-block" style="font-size:10rem" aria-hidden="true"></i>
+            <div class="container position-relative">
+                <div class="small text-uppercase fw-bold text-warning">Competición</div>
+                <h1 class="display-3 fw-bolder text-uppercase mb-1">Torneos</h1>
+                <p class="lead text-body-secondary mb-0">Todos los torneos. Los que tienen estado ABIERTO admiten inscripciones.</p>
+            </div>
+        </div>
+        <div class="container py-5">
+            <div class="card bg-body-tertiary border-0 rounded-4 shadow-lg mb-4"><div class="card-body p-3 p-lg-4">
+                <div class="row g-3 align-items-center">
+                    <div class="col-lg-4">
+                        <label class="visually-hidden" for="qT">Buscar torneo</label>
+                        <div class="input-group input-group-lg"><span class="input-group-text"><i class="bi bi-search" aria-hidden="true"></i></span><input id="qT" type="search" class="form-control" placeholder="Buscar por nombre o juego" oninput="pintaTorneos()"></div>
+                    </div>
+                    <div class="col-lg-5"><ul class="nav nav-pills gap-1 flex-wrap" id="pillsEstado" aria-label="Filtrar por estado"></ul></div>
+                    <div class="col-lg-3">
+                        <label class="visually-hidden" for="ordenT">Ordenar por</label>
+                        <select id="ordenT" class="form-select form-select-lg" onchange="pintaTorneos()"><option value="fecha">Fecha más próxima</option><option value="premio">Mayor premio</option><option value="nombre">Nombre A-Z</option></select>
+                    </div>
+                </div>
+            </div></div>
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+                <span class="text-body-secondary" id="cuentaTorneos"></span>
+                <div class="btn-group" role="group" aria-label="Forma de mostrar los torneos">
+                    <button id="bTarj" type="button" class="btn btn-primary" onclick="vista('tarjetas')"><i class="bi bi-grid me-1"></i>Tarjetas</button>
+                    <button id="bTab" type="button" class="btn btn-outline-light" onclick="vista('tabla')"><i class="bi bi-list-ul me-1"></i>Tabla</button>
+                </div>
+            </div>
+            <div id="listaTorneos" aria-live="polite"></div>
+        </div>
+    </section>
+
+    <!-- ===================== BUSCAR / FILTROS ===================== -->
+    <section id="filtros" class="seccion d-none">
+        <div class="position-relative overflow-hidden py-5 border-bottom border-primary border-3" style="background:radial-gradient(ellipse at 85% 0%,rgba(37,99,235,.45),transparent 55%),#050914">
+            <i class="bi bi-search position-absolute end-0 top-50 translate-middle-y me-5 text-primary opacity-25 d-none d-md-block" style="font-size:10rem" aria-hidden="true"></i>
+            <div class="container position-relative">
+                <div class="small text-uppercase fw-bold text-warning">Encuentra tu torneo</div>
+                <h1 class="display-3 fw-bolder text-uppercase mb-1">Buscar torneos</h1>
+                <p class="lead text-body-secondary mb-0">Combina videojuego y estado para encontrar el torneo que buscas.</p>
+            </div>
+        </div>
+        <div class="container py-5">
+            <div class="card bg-body-tertiary border-0 border-start border-4 border-primary rounded-4 shadow-lg mb-4"><div class="card-body p-4">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-5"><label class="form-label fw-semibold text-uppercase small" for="fVj">Videojuego</label><select class="form-select form-select-lg" id="fVj" onchange="pintaFiltros()"></select></div>
+                    <div class="col-md-5"><label class="form-label fw-semibold text-uppercase small" for="fEs">Estado</label>
+                        <select class="form-select form-select-lg" id="fEs" onchange="pintaFiltros()">
+                            <option value="">Todos los estados</option><option>ABIERTO</option><option>EN_CURSO</option><option>FINALIZADO</option>
+                        </select></div>
+                    <div class="col-md-2"><button class="btn btn-secondary btn-lg w-100" onclick="limpiaFiltros()">Quitar filtros</button></div>
+                </div>
+            </div></div>
+            <p class="text-body-secondary mb-3" id="cuentaFiltros" aria-live="polite"></p>
+            <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4" id="resFiltros"></div>
+        </div>
+    </section>
+
+    <!-- ===================== MIS INSCRIPCIONES ===================== -->
+    <section id="participaciones" class="seccion d-none">
+        <div class="position-relative overflow-hidden py-5 border-bottom border-primary border-3" style="background:radial-gradient(ellipse at 85% 0%,rgba(16,185,129,.35),transparent 55%),#050914">
+            <i class="bi bi-person-check position-absolute end-0 top-50 translate-middle-y me-5 text-success opacity-25 d-none d-md-block" style="font-size:10rem" aria-hidden="true"></i>
+            <div class="container position-relative">
+                <div class="small text-uppercase fw-bold text-warning">Tu zona</div>
+                <h1 class="display-3 fw-bolder text-uppercase mb-1">Mis inscripciones</h1>
+                <p class="lead text-body-secondary mb-0">Apúntate a un torneo abierto y consulta en cuáles participas.</p>
+            </div>
+        </div>
+        <div class="container py-5">
+            <div class="row g-4">
+                <div class="col-lg-6"><div class="card h-100 bg-body-tertiary border-0 border-top border-4 border-success rounded-4 shadow-lg"><div class="card-body p-4 p-lg-5">
+                    <h2 class="h3 fw-bolder text-uppercase mb-4"><i class="bi bi-pencil-square text-success me-2"></i>Inscribirme en un torneo</h2>
+                    <div class="mb-3"><label class="form-label fw-semibold text-uppercase small" for="pJ">Soy el jugador</label><select class="form-select form-select-lg" id="pJ"></select></div>
+                    <div class="mb-4"><label class="form-label fw-semibold text-uppercase small" for="pT">Torneo</label><select class="form-select form-select-lg" id="pT"></select>
+                        <div class="form-text">Solo aparecen torneos con estado ABIERTO.</div></div>
+                    <button class="btn btn-success btn-lg px-4 text-uppercase fw-bold" onclick="inscribir()"><i class="bi bi-check-circle me-2"></i>Inscribirme</button>
+                    <div id="msgPart" role="status"></div>
+                </div></div></div>
+                <div class="col-lg-6"><div class="card h-100 bg-body-tertiary border-0 border-top border-4 border-primary rounded-4 shadow-lg"><div class="card-body p-4 p-lg-5">
+                    <h2 class="h3 fw-bolder text-uppercase mb-4"><i class="bi bi-trophy text-primary me-2"></i>Mis torneos</h2>
+                    <div class="mb-3"><label class="form-label fw-semibold text-uppercase small" for="cJ">Jugador</label><select class="form-select form-select-lg" id="cJ" onchange="consultaJugador()"></select></div>
+                    <div id="resJugador"></div>
+                </div></div></div>
+            </div>
+            <div class="mt-5 mb-4">
+                <div class="small text-uppercase fw-bold text-warning">Consulta</div>
+                <h2 class="display-6 fw-bolder text-uppercase">Quién participa en cada torneo</h2>
+            </div>
+            <div class="mb-3 col-md-6 col-lg-4"><label class="form-label fw-semibold text-uppercase small" for="cT">Torneo</label><select class="form-select form-select-lg" id="cT" onchange="consultaTorneo()"></select></div>
+            <div id="resTorneo"></div>
+        </div>
+    </section>
+
+</main>
+
+<!-- ===================== PIE ===================== -->
+<footer class="bg-black border-top border-primary border-3 pt-5 pb-4 mt-auto">
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-lg-5">
+                <a class="d-inline-flex align-items-center gap-2 fw-bolder fs-3 text-uppercase text-white text-decoration-none" href="#inicio">
+                    <span class="d-inline-flex align-items-center justify-content-center bg-primary rounded-2" style="width:38px;height:38px"><i class="bi bi-trophy-fill text-warning fs-5"></i></span>GameArena
+                </a>
+                <p class="text-body-secondary mt-3 mb-0 col-lg-9">Plataforma de torneos de videojuegos: Valorant, League of Legends, Rocket League, Fortnite y EA Sports FC.</p>
+            </div>
+            <div class="col-6 col-lg-3">
+                <h2 class="h6 text-uppercase fw-bold text-warning mb-3">Competición</h2>
+                <ul class="list-unstyled mb-0">
+                    <li class="mb-2"><a class="link-light link-opacity-75 link-opacity-100-hover text-decoration-none" href="#torneos">Torneos</a></li>
+                    <li class="mb-2"><a class="link-light link-opacity-75 link-opacity-100-hover text-decoration-none" href="#videojuegos">Videojuegos</a></li>
+                    <li><a class="link-light link-opacity-75 link-opacity-100-hover text-decoration-none" href="#jugadores">Jugadores</a></li>
+                </ul>
+            </div>
+            <div class="col-6 col-lg-4">
+                <h2 class="h6 text-uppercase fw-bold text-warning mb-3">Tu zona</h2>
+                <ul class="list-unstyled mb-0">
+                    <li class="mb-2"><a class="link-light link-opacity-75 link-opacity-100-hover text-decoration-none" href="#filtros">Buscar torneos</a></li>
+                    <li><a class="link-light link-opacity-75 link-opacity-100-hover text-decoration-none" href="#participaciones">Mis inscripciones</a></li>
+                </ul>
+            </div>
+        </div>
+        <hr class="my-4">
+        <div class="d-flex justify-content-between flex-wrap gap-2 small text-body-secondary">
+            <span>© 2026 GameArena · Proyecto DIW UD02 · 2.º DAW</span>
+            <a class="link-secondary text-decoration-none" href="#inicio"><i class="bi bi-arrow-up-circle me-1"></i>Volver al inicio</a>
+        </div>
+    </div>
+</footer>
+
+<!-- Avisos -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="toasts"></div>
+
+<!-- Ventana de detalle (modal de Bootstrap) -->
+<div class="modal fade" id="modalDetalle" tabindex="-1" aria-label="Detalle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-body-tertiary border-0 border-top border-4 border-primary rounded-4 shadow-lg overflow-hidden">
+            <div class="modal-body p-4" id="dlgBody"></div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const API_URL = "http://localhost:8080";
+
+    let videojuegos = [];
+    let jugadores = [];
+    let torneos = [];
+    let participaciones = [];
+    let modo = "tarjetas";
+    let demo = false;
+    let estadoT = "";
+
+    /* ===== DATOS DE EJEMPLO =====
+       Solo se usan si no hay conexión con la API, para poder hacer la demostración.
+       Para quitarlos, borra este bloque y la función usarDemo(). */
+    const DEMO = {
+        videojuegos: [
+            { id: 1, nombre: "Valorant", genero: "Shooter táctico" },
+            { id: 2, nombre: "League of Legends", genero: "MOBA" },
+            { id: 3, nombre: "Rocket League", genero: "Fútbol con coches" },
+            { id: 4, nombre: "Fortnite", genero: "Battle royale" },
+            { id: 5, nombre: "EA Sports FC", genero: "Deportes" }
+        ],
+        jugadores: [
+            { id: 1, nick: "NovaX", pais: "España" }, { id: 2, nick: "Kira77", pais: "México" },
+            { id: 3, nick: "ByteWolf", pais: "Argentina" }, { id: 4, nick: "Lumen", pais: "Chile" },
+            { id: 5, nick: "Zephyr", pais: "Colombia" }
+        ],
+        torneos: [
+            { id: 1, nombre: "Copa Valorant Invierno", videojuegoId: 1, estado: "ABIERTO", fecha: "2026-12-05", premio: "500 €" },
+            { id: 2, nombre: "Liga LoL Noviembre", videojuegoId: 2, estado: "EN_CURSO", fecha: "2026-11-10", premio: "800 €" },
+            { id: 3, nombre: "Rocket Cup Madrid", videojuegoId: 3, estado: "FINALIZADO", fecha: "2026-10-10", premio: "300 €" },
+            { id: 4, nombre: "Fortnite Open", videojuegoId: 4, estado: "ABIERTO", fecha: "2026-12-12", premio: "400 €" },
+            { id: 5, nombre: "FC Champions Local", videojuegoId: 5, estado: "EN_CURSO", fecha: "2026-11-14", premio: "250 €" },
+            { id: 6, nombre: "Valorant Clutch Night", videojuegoId: 1, estado: "FINALIZADO", fecha: "2026-09-20", premio: "350 €" },
+            { id: 7, nombre: "Rocket Winter Cup", videojuegoId: 3, estado: "ABIERTO", fecha: "2026-12-20", premio: "350 €" }
+        ],
+        participaciones: [
+            { jugadorId: 1, torneoId: 1 }, { jugadorId: 2, torneoId: 2 }, { jugadorId: 3, torneoId: 2 },
+            { jugadorId: 1, torneoId: 4 }, { jugadorId: 4, torneoId: 5 }, { jugadorId: 5, torneoId: 7 }
+        ]
+    };
+
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    const modalDetalle = new bootstrap.Modal($("modalDetalle"));
+
+    const getVjId = t => t?.videojuego?.id ?? t?.videojuegoId ?? t?.vj;
+    const getJugId = p => p?.jugador?.id ?? p?.jugadorId ?? p?.j;
+    const getTorId = p => p?.torneo?.id ?? p?.torneoId ?? p?.t;
+
+    const vjDe = t => {
+        if (t?.videojuego?.nombre) return t.videojuego;
+        const id = getVjId(t);
+        return videojuegos.find(v => v.id == id) || { nombre: "Sin videojuego" };
+    };
+    const inscritos = id => participaciones.filter(p => getTorId(p) == id).length;
+
+    // Estados: color de Bootstrap + texto + símbolo (no dependen solo del color)
+    const txtEstado = { ABIERTO: "● ABIERTO", EN_CURSO: "▶ EN CURSO", FINALIZADO: "✔ FINALIZADO" };
+    const clsEstado = { ABIERTO: "text-bg-success", EN_CURSO: "text-bg-warning", FINALIZADO: "text-bg-secondary" };
+    const colEstado = { ABIERTO: "success", EN_CURSO: "warning", FINALIZADO: "secondary" };
+    const badge = e => `<span class="badge ${clsEstado[e] || "text-bg-secondary"}">${txtEstado[e] || e}</span>`;
+    const fechaEs = f => f ? new Date(f).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" }) : "";
+    const vacio = (txt, span) => `<div class="${span ? "col-12" : ""}"><div class="bg-body-tertiary text-body-secondary text-center rounded-4 p-5">${txt}</div></div>`;
+
+    // Faltan N días (cuenta atrás sencilla)
+    const faltan = f => {
+        const d = Math.ceil((new Date(f) - new Date()) / 86400000);
+        if (isNaN(d)) return "";
+        return d > 1 ? `Faltan ${d} días` : d === 1 ? "Mañana" : d === 0 ? "Hoy" : "Fecha pasada";
+    };
+
+    // Cada videojuego recibe un degradado distinto mientras no tenga imagen
+    const GRAD = [["#0b1b5c","#2563eb"],["#3b0a6b","#9333ea"],["#064e3b","#10b981"],["#7c2d12","#f59e0b"],["#831843","#ec4899"],["#0c4a6e","#06b6d4"]];
+    const grad = n => {
+        let h = 0;
+        for (const c of String(n)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+        const g = GRAD[h % GRAD.length];
+        return `background:linear-gradient(135deg,${g[0]},${g[1]})`;
+    };
+    // Hueco de imagen 16:9 con título (se sustituye por el <img> de los comentarios)
+    const portada = nombre => `<div class="ratio ratio-16x9"><div class="overflow-hidden d-flex align-items-end" style="${grad(nombre)}">
+        <i class="bi bi-controller position-absolute top-50 start-50 translate-middle text-white opacity-25" style="font-size:6rem" aria-hidden="true"></i>
+        <div class="position-absolute bottom-0 start-0 w-100 h-75" style="background:linear-gradient(transparent,rgba(0,0,0,.75))"></div>
+        <span class="position-relative p-3 fw-bolder fs-4 text-uppercase text-white lh-1">${esc(nombre)}</span></div></div>`;
+
+    /* ===== CARGA DE DATOS ===== */
+    async function cargarDatosAPI() {
+        const badgeApi = $("estadoApi");
+        try {
+            const [resVj, resJug, resTor, resPart] = await Promise.all([
+                fetch(`${API_URL}/videojuegos`).then(r => r.ok ? r.json() : []),
+                fetch(`${API_URL}/jugadores`).then(r => r.ok ? r.json() : []),
+                fetch(`${API_URL}/torneos`).then(r => r.ok ? r.json() : []),
+                fetch(`${API_URL}/participaciones`).then(r => r.ok ? r.json() : [])
+            ]);
+            videojuegos = Array.isArray(resVj) ? resVj : [];
+            jugadores = Array.isArray(resJug) ? resJug : [];
+            torneos = Array.isArray(resTor) ? resTor : [];
+            participaciones = Array.isArray(resPart) ? resPart : [];
+
+            demo = false;
+            $("avisoApi").classList.add("d-none");
+            badgeApi.className = "badge text-bg-success";
+            badgeApi.textContent = "● Conectado";
+            refresca();
+        } catch (err) {
+            console.error("Error conectando a " + API_URL + ":", err);
+            usarDemo();
+        }
+    }
+
+    function usarDemo() {
+        const d = structuredClone(DEMO);
+        videojuegos = d.videojuegos; jugadores = d.jugadores; torneos = d.torneos; participaciones = d.participaciones;
+        demo = true;
+        $("avisoApi").classList.remove("d-none");
+        $("estadoApi").className = "badge text-bg-warning";
+        $("estadoApi").textContent = "● Modo demostración";
+        refresca();
+    }
+
+    /* ===== NAVEGACIÓN ===== */
+    function ruta() {
+        const id = (location.hash || "#inicio").slice(1);
+        const sec = $(id) || $("inicio");
+        document.querySelectorAll(".seccion").forEach(s => s.classList.toggle("d-none", s !== sec));
+        document.querySelectorAll("#menu .nav-link").forEach(a => {
+            const activo = a.getAttribute("href") === "#" + sec.id;
+            a.classList.toggle("active", activo);
+            if (!a.classList.contains("bg-success")) a.classList.toggle("text-warning", activo);
+            if (activo) {
+                a.setAttribute("aria-current", "page");
+                $("ubicacion").textContent = a.textContent;
+                document.title = a.textContent + " · GameArena";
+            } else a.removeAttribute("aria-current");
+        });
+        bootstrap.Collapse.getInstance($("menu"))?.hide();
+        window.scrollTo(0, 0);
+    }
+    window.addEventListener("hashchange", ruta);
+
+    /* ===== RENDERIZADO ===== */
+    function botonesTorneo(t) {
+        // Ver detalle = secundaria (contorno claro); Inscribirme = verde, solo si el torneo está ABIERTO
+        return `<button class="btn btn-outline-light btn-sm" onclick="fichaTorneo(${t.id})">Ver detalle</button>` +
+            (t.estado === "ABIERTO" ? `<button class="btn btn-success btn-sm" onclick="irInscribir(${t.id})">Inscribirme</button>` : "");
+    }
+
+    function tarjetaTorneo(t) {
+        const vj = vjDe(t);
+        return `<div class="col"><article class="card h-100 bg-body-tertiary border-0 border-top border-4 border-${colEstado[t.estado] || "secondary"} rounded-4 shadow-lg overflow-hidden">
+    <div class="position-relative">
+      <!-- IMAGEN: aquí va la imagen del torneo / videojuego (portada de la tarjeta, aprox. 480x270). Sustituir el div.ratio por <img src="img/torneo.jpg" alt="Portada del torneo" class="card-img-top object-fit-cover w-100" width="480" height="270"> -->
+      ${portada(vj.nombre)}
+      <div class="position-absolute top-0 start-0 m-3">${badge(t.estado)}</div>
+    </div>
+    <div class="card-body p-4">
+      <h3 class="card-title h4 fw-bolder text-uppercase lh-1 mb-3">${esc(t.nombre)}</h3>
+      <div class="d-flex justify-content-between align-items-end">
+        <div>
+          <div class="text-body-secondary small"><i class="bi bi-controller me-1"></i>${esc(vj.nombre)}</div>
+          <div class="text-body-secondary small"><i class="bi bi-calendar-event me-1"></i>${fechaEs(t.fecha)}</div>
+          <div class="text-body-secondary small"><i class="bi bi-people me-1"></i>${inscritos(t.id)} inscritos</div>
+        </div>
+        <div class="text-end"><div class="small text-uppercase text-body-secondary">Premio</div><div class="fs-3 fw-bolder text-warning lh-1">${esc(t.premio || "-")}</div></div>
+      </div>
+    </div>
+    <div class="card-footer bg-transparent border-0 px-4 pb-4 pt-0 d-flex flex-wrap gap-2">${botonesTorneo(t)}</div>
+  </article></div>`;
+    }
+
+    function tablaTorneos(lista) {
+        return `<div class="card bg-body-tertiary border-0 rounded-4 shadow-lg overflow-hidden"><div class="table-responsive"><table class="table table-hover align-middle mb-0" style="--bs-table-bg:transparent"><caption class="visually-hidden">Lista de torneos</caption><thead><tr class="text-uppercase small text-body-secondary"><th class="ps-4 py-3">Torneo</th><th>Videojuego</th><th>Fecha</th><th>Premio</th><th>Estado</th><th class="pe-4">Acciones</th></tr></thead><tbody>` +
+            lista.map(t => `<tr><td class="ps-4 fw-bold">${esc(t.nombre)}</td><td>${esc(vjDe(t).nombre)}</td><td>${fechaEs(t.fecha)}</td><td class="fw-bold text-warning">${esc(t.premio)}</td><td>${badge(t.estado)}</td>
+    <td class="pe-4"><div class="d-flex flex-wrap gap-2">${botonesTorneo(t)}</div></td></tr>`).join("") + `</tbody></table></div></div>`;
+    }
+
+    function pintaInicio() {
+        const abiertos = torneos.filter(t => t.estado === "ABIERTO");
+        const enCurso = torneos.filter(t => t.estado === "EN_CURSO");
+        const prox = [...abiertos].sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+        // Cifras
+        const cifra = (n, txt, ico, ultimo) => `<div class="col-6 col-md-3 py-4 ${ultimo ? "" : "border-end"}"><i class="bi ${ico} text-primary fs-4" aria-hidden="true"></i><div class="display-5 fw-bolder text-warning lh-1">${n}</div><div class="small text-body-secondary text-uppercase">${txt}</div></div>`;
+        $("cifras").innerHTML = cifra(torneos.length, "torneos", "bi-trophy") + cifra(jugadores.length, "jugadores", "bi-people") + cifra(videojuegos.length, "videojuegos", "bi-controller") + cifra(abiertos.length, "abiertos", "bi-unlock", true);
+
+        // Indicador en directo (barra superior)
+        $("live").innerHTML = enCurso.length ? `<span class="spinner-grow spinner-grow-sm text-danger me-2" role="status"></span>${enCurso.length} en directo` : "";
+
+        // Chips de videojuegos
+        $("chipsJuegos").innerHTML = videojuegos.map(v => `<button class="btn btn-outline-light btn-sm rounded-pill px-3" onclick="irTorneosDe(${v.id})">${esc(v.nombre)}</button>`).join("");
+
+        // Torneos destacados: carrusel con los abiertos más próximos
+        const dest = prox.slice(0, 3);
+        const diapo = (d, i) => `<div class="carousel-item ${i === 0 ? "active" : ""}">
+      <div class="rounded-3 overflow-hidden mb-3 position-relative">
+        <!-- IMAGEN: portada del torneo destacado (aprox. 560x315). Sustituir el div.ratio por <img src="img/destacado.jpg" alt="Torneo destacado" class="w-100 object-fit-cover" width="560" height="315"> -->
+        ${portada(vjDe(d).nombre)}<div class="position-absolute top-0 start-0 m-3">${badge(d.estado)}</div>
+      </div>
+      <h2 class="h2 fw-bolder text-uppercase lh-1 mb-1">${esc(d.nombre)}</h2>
+      <p class="text-white-50 mb-3"><i class="bi bi-clock me-1"></i>${faltan(d.fecha)} · ${fechaEs(d.fecha)}</p>
+      <div class="d-flex justify-content-between align-items-end gap-3">
+        <div><div class="small text-uppercase text-white-50">Premio</div><div class="display-6 fw-bolder text-warning lh-1">${esc(d.premio || "-")}</div></div>
+        <button class="btn btn-success btn-lg text-uppercase fw-bold" onclick="irInscribir(${d.id})">Inscribirme</button>
+      </div></div>`;
+        $("destacado").innerHTML = dest.length ? `<div class="bg-black bg-opacity-50 border border-opacity-25 border-light rounded-4 p-4 shadow-lg">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <span class="small text-uppercase fw-bold text-warning"><i class="bi bi-star-fill me-1"></i>Torneos destacados</span>
+        ${dest.length > 1 ? `<div class="d-flex gap-1"><button type="button" class="btn btn-outline-light btn-sm" data-bs-target="#carDest" data-bs-slide="prev" aria-label="Anterior"><i class="bi bi-chevron-left"></i></button><button type="button" class="btn btn-outline-light btn-sm" data-bs-target="#carDest" data-bs-slide="next" aria-label="Siguiente"><i class="bi bi-chevron-right"></i></button></div>` : ""}
+      </div>
+      <div id="carDest" class="carousel slide"><div class="carousel-inner">${dest.map(diapo).join("")}</div></div></div>` :
+            `<div class="bg-black bg-opacity-50 border border-opacity-25 border-light rounded-4 p-5 text-center shadow-lg"><i class="bi bi-trophy text-warning display-3" aria-hidden="true"></i><h2 class="h3 fw-bolder text-uppercase mt-2">Pronto, nuevos torneos</h2><p class="text-white-50 mb-3">Ahora mismo no hay torneos abiertos.</p><a class="btn btn-outline-light" href="#torneos">Ver todos los torneos</a></div>`;
+
+        // Próximos torneos (agenda)
+        $("proximos").innerHTML = prox.length ? prox.slice(0, 4).map(t => {
+            const f = new Date(t.fecha);
+            return `<li class="list-group-item bg-transparent d-flex align-items-center gap-3 py-3 px-4 flex-wrap">
+      <div class="text-center bg-primary rounded-3 px-3 py-2" style="min-width:70px">
+        <div class="fs-3 fw-bolder lh-1 text-white">${isNaN(f) ? "-" : f.getDate()}</div>
+        <div class="small text-uppercase text-white-50">${isNaN(f) ? "" : f.toLocaleDateString("es-ES", { month: "short" })}</div>
+      </div>
+      <div class="flex-grow-1">
+        <div class="fw-bolder fs-5 text-uppercase lh-1">${esc(t.nombre)}</div>
+        <div class="small text-body-secondary mt-1"><i class="bi bi-controller me-1"></i>${esc(vjDe(t).nombre)} · <i class="bi bi-people me-1"></i>${inscritos(t.id)} inscritos</div>
+      </div>
+      <div class="text-end me-2"><div class="small text-uppercase text-body-secondary">Premio</div><div class="fs-4 fw-bolder text-warning lh-1">${esc(t.premio || "-")}</div></div>
+      <button class="btn btn-success btn-sm" onclick="irInscribir(${t.id})">Inscribirme</button>
+    </li>`;
+        }).join("") : `<li class="list-group-item bg-transparent text-body-secondary text-center py-5">Ahora mismo no hay torneos abiertos.</li>`;
+
+        // En directo
+        $("directoWrap").classList.toggle("d-none", !enCurso.length);
+        $("directo").innerHTML = enCurso.slice(0, 3).map(tarjetaTorneo).join("");
+
+        pintaPodio();
+    }
+
+    // Ranking: jugadores con más torneos (se calcula con las inscripciones)
+    function pintaPodio() {
+        const top = jugadores.map(j => ({ j, n: participaciones.filter(p => getJugId(p) == j.id).length }))
+            .filter(x => x.n > 0).sort((a, b) => b.n - a.n).slice(0, 3);
+        $("podioWrap").classList.toggle("d-none", !top.length);
+        const medalla = ["#ffc107", "#c0c7d4", "#cd7f32"];
+        const orden = ["order-md-2", "order-md-1", "order-md-3"];   // el 1.º va en el centro
+        $("podio").innerHTML = top.map((x, i) => `<div class="col-md-4 ${orden[i]}">
+      <div class="card bg-body-tertiary border-0 rounded-4 shadow-lg text-center ${i === 0 ? "border-top border-4 border-warning" : ""}">
+        <div class="card-body ${i === 0 ? "p-5" : "p-4"}">
+          <i class="bi bi-trophy-fill ${i === 0 ? "display-3" : "display-5"}" style="color:${medalla[i]}" aria-hidden="true"></i>
+          <div class="display-6 fw-bolder lh-1 mt-1">${i + 1}º</div>
+          <h3 class="h4 fw-bolder text-uppercase mt-2 mb-0">${esc(x.j.nick)}</h3>
+          <div class="text-body-secondary">${esc(x.j.pais || "")}</div>
+          <div class="mt-3"><span class="badge text-bg-dark border">${x.n} ${x.n === 1 ? "torneo" : "torneos"}</span></div>
+        </div></div></div>`).join("");
+    }
+
+    // Aviso emergente (toast de Bootstrap)
+    function avisa(txt, cls = "text-bg-success") {
+        const el = document.createElement("div");
+        el.className = `toast align-items-center border-0 ${cls}`;
+        el.setAttribute("role", "status");
+        el.innerHTML = `<div class="d-flex"><div class="toast-body fw-semibold"><i class="bi bi-check-circle-fill me-2"></i>${txt}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button></div>`;
+        $("toasts").appendChild(el);
+        el.addEventListener("hidden.bs.toast", () => el.remove());
+        new bootstrap.Toast(el, { delay: 4000 }).show();
+    }
+
+    // Tarjetas de carga mientras llegan los datos
+    const esqueleto = () => `<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4" aria-busy="true">` +
+        [1, 2, 3].map(() => `<div class="col"><div class="card bg-body-tertiary border-0 rounded-4 overflow-hidden placeholder-glow"><div class="ratio ratio-16x9"><span class="placeholder rounded-0"></span></div><div class="card-body p-4"><span class="placeholder placeholder-lg col-8 mb-3"></span><span class="placeholder col-5"></span><span class="placeholder col-7"></span></div></div></div>`).join("") + `</div>`;
+
+    function setEstadoT(e) {
+        estadoT = e;
+        pintaTorneos();
+    }
+
+    function pintaJugadores() {
+        $("tbJugadores").innerHTML = jugadores.length ? jugadores.map(j => `<tr>
+    <td class="ps-4 py-3"><div class="d-flex align-items-center gap-3"><span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary text-white fw-bolder" style="width:40px;height:40px" aria-hidden="true">${esc((j.nick || "?").charAt(0).toUpperCase())}</span><span class="fw-bold fs-5">${esc(j.nick)}</span></div></td>
+    <td>${esc(j.pais || "-")}</td>
+    <td><span class="badge text-bg-dark border">${participaciones.filter(p => getJugId(p) == j.id).length}</span></td>
+    <td class="pe-4"><button class="btn btn-outline-light btn-sm" onclick="fichaJugador(${j.id})">Ver ficha</button></td></tr>`).join("") :
+            `<tr><td colspan="4" class="text-center text-body-secondary py-5">Todavía no hay jugadores registrados.</td></tr>`;
+    }
+
+    function pintaVideojuegos() {
+        $("gridVideojuegos").innerHTML = videojuegos.length ? videojuegos.map(v => `<div class="col"><article class="card h-100 bg-body-tertiary border-0 border-top border-4 border-primary rounded-4 shadow-lg overflow-hidden">
+    <!-- IMAGEN: aquí va la imagen / carátula del videojuego (aprox. 480x270). Sustituir el div.ratio por <img src="img/videojuego.jpg" alt="Carátula del videojuego" class="card-img-top object-fit-cover w-100" width="480" height="270"> -->
+    ${portada(v.nombre)}
+    <div class="card-body p-4">
+      <h3 class="card-title h4 fw-bolder text-uppercase lh-1">${esc(v.nombre)}</h3>
+      <p class="text-body-secondary mb-2">${esc(v.genero || "")}</p>
+      <p class="mb-0"><i class="bi bi-trophy-fill text-warning me-1"></i><strong>${torneos.filter(t => getVjId(t) == v.id).length}</strong> torneos</p>
+    </div>
+    <div class="card-footer bg-transparent border-0 px-4 pb-4 pt-0"><button class="btn btn-primary btn-sm" onclick="irTorneosDe(${v.id})">Ver sus torneos</button></div>
+  </article></div>`).join("") : vacio("No hay videojuegos disponibles.", true);
+    }
+
+    function pintaTorneos() {
+        const q = ($("qT").value || "").trim().toLowerCase();
+        const orden = $("ordenT").value;
+
+        // Pestañas de estado con contador
+        const cuenta = e => torneos.filter(t => !e || t.estado === e).length;
+        const pills = [["", "Todos"], ["ABIERTO", "Abiertos"], ["EN_CURSO", "En curso"], ["FINALIZADO", "Finalizados"]];
+        $("pillsEstado").innerHTML = pills.map(([e, txt]) => `<li class="nav-item"><button type="button" class="nav-link ${estadoT === e ? "active" : ""}" ${estadoT === e ? 'aria-current="true"' : ""} onclick="setEstadoT('${e}')">${txt} <span class="badge text-bg-dark ms-1">${cuenta(e)}</span></button></li>`).join("");
+
+        // Filtrar y ordenar
+        const num = p => parseFloat(String(p ?? "").replace(/[^\d.,]/g, "").replace(",", ".")) || 0;
+        const l = torneos.filter(t => (!estadoT || t.estado === estadoT) && (!q || (t.nombre + " " + vjDe(t).nombre).toLowerCase().includes(q)));
+        l.sort(orden === "premio" ? (a, b) => num(b.premio) - num(a.premio)
+            : orden === "nombre" ? (a, b) => String(a.nombre).localeCompare(String(b.nombre), "es")
+                : (a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+        $("cuentaTorneos").textContent = l.length + (l.length === 1 ? " torneo" : " torneos");
+        $("listaTorneos").innerHTML = l.length ?
+            (modo === "tarjetas" ? `<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">${l.map(tarjetaTorneo).join("")}</div>` : tablaTorneos(l)) :
+            vacio(torneos.length ? "No hay torneos con esa búsqueda. Prueba con otro nombre o estado." : "Todavía no hay torneos.");
+    }
+
+    function vista(m) {
+        modo = m;
+        $("bTarj").className = "btn " + (m === "tarjetas" ? "btn-primary" : "btn-outline-light");
+        $("bTab").className = "btn " + (m === "tabla" ? "btn-primary" : "btn-outline-light");
+        pintaTorneos();
+    }
+
+    function pintaFiltros() {
+        const vj = $("fVj").value, es = $("fEs").value;
+        const l = torneos.filter(t => (!vj || getVjId(t) == vj) && (!es || t.estado === es));
+        $("cuentaFiltros").innerHTML = `<strong class="text-white">${l.length}</strong> ${l.length === 1 ? "torneo encontrado" : "torneos encontrados"}`;
+        $("resFiltros").innerHTML = l.length ? l.map(tarjetaTorneo).join("") : vacio("No hay torneos con esa combinación. Prueba a quitar algún filtro.", true);
+    }
+
+    function limpiaFiltros() {
+        $("fVj").value = "";
+        $("fEs").value = "";
+        pintaFiltros();
+    }
+
+    function irTorneosDe(id) {
+        location.hash = "#filtros";
+        $("fVj").value = id;
+        $("fEs").value = "";
+        pintaFiltros();
+    }
+
+    function irInscribir(torneoId) {
+        modalDetalle.hide();
+        location.hash = "#participaciones";
+        $("pT").value = torneoId;
+    }
+
+    function pintaSelects() {
+        const opJ = jugadores.map(j => `<option value="${j.id}">${esc(j.nick)}</option>`).join("");
+        $("pJ").innerHTML = opJ || `<option value="">Sin jugadores</option>`;
+        $("cJ").innerHTML = opJ || `<option value="">Sin jugadores</option>`;
+
+        const abiertos = torneos.filter(t => t.estado === "ABIERTO");
+        $("pT").innerHTML = abiertos.length ? abiertos.map(t => `<option value="${t.id}">${esc(t.nombre)}</option>`).join("") : `<option value="">No hay torneos abiertos</option>`;
+        $("cT").innerHTML = torneos.length ? torneos.map(t => `<option value="${t.id}">${esc(t.nombre)}</option>`).join("") : `<option value="">Sin torneos</option>`;
+        $("fVj").innerHTML = `<option value="">Todos los videojuegos</option>` + videojuegos.map(v => `<option value="${v.id}">${esc(v.nombre)}</option>`).join("");
+    }
+
+    /* ===== INSCRIPCIÓN (única escritura que hace el usuario) ===== */
+    async function inscribir() {
+        const jugadorId = $("pJ").value, torneoId = $("pT").value, m = $("msgPart");
+        if (!jugadorId || !torneoId) {
+            m.innerHTML = `<div class="alert alert-danger mt-3 mb-0">Elige un jugador y un torneo abierto.</div>`;
+            return;
+        }
+
+        // En modo demostración la inscripción se guarda solo en la página
+        if (demo) {
+            if (participaciones.some(p => getJugId(p) == jugadorId && getTorId(p) == torneoId)) {
+                m.innerHTML = `<div class="alert alert-danger mt-3 mb-0">Ese jugador ya está inscrito en este torneo.</div>`;
+                return;
+            }
+            participaciones.push({ jugadorId: +jugadorId, torneoId: +torneoId });
+            m.innerHTML = "";
+            avisa("¡Inscripción confirmada!");
+            refresca();
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API_URL}/participaciones`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    jugadorId: +jugadorId,
+                    torneoId: +torneoId,
+                    jugador: { id: +jugadorId },
+                    torneo: { id: +torneoId }
+                })
+            });
+            if (res.ok) {
+                m.innerHTML = "";
+                avisa("¡Inscripción confirmada!");
+                await cargarDatosAPI();
+            } else {
+                const errTxt = await res.text();
+                m.innerHTML = `<div class="alert alert-danger mt-3 mb-0">No se pudo inscribir: ${esc(errTxt) || 'revisa los datos'}</div>`;
+            }
+        } catch (e) {
+            m.innerHTML = `<div class="alert alert-danger mt-3 mb-0">No hay conexión con el servidor.</div>`;
+        }
+    }
+
+    function consultaJugador() {
+        const jId = +$("cJ").value;
+        const ts = participaciones.filter(p => getJugId(p) == jId).map(p => torneos.find(t => t.id == getTorId(p))).filter(Boolean);
+        $("resJugador").innerHTML = ts.length ? `<ul class="list-group list-group-flush">` +
+            ts.map(t => `<li class="list-group-item bg-transparent d-flex justify-content-between align-items-center px-0 py-3"><span class="fw-bold fs-5 text-uppercase">${esc(t.nombre)}</span>${badge(t.estado)}</li>`).join("") + `</ul>` :
+            `<div class="text-body-secondary text-center rounded-3 p-4 border">Este jugador aún no está inscrito en ningún torneo.</div>`;
+    }
+
+    function consultaTorneo() {
+        const tId = +$("cT").value;
+        const js = participaciones.filter(p => getTorId(p) == tId).map(p => jugadores.find(j => j.id == getJugId(p))).filter(Boolean);
+        $("resTorneo").innerHTML = js.length ? `<div class="card bg-body-tertiary border-0 rounded-4 shadow-lg overflow-hidden"><div class="table-responsive"><table class="table table-hover align-middle mb-0" style="--bs-table-bg:transparent"><caption class="visually-hidden">Participantes del torneo</caption><thead><tr class="text-uppercase small text-body-secondary"><th class="ps-4 py-3">Jugador</th><th>País</th></tr></thead><tbody>` +
+            js.map(j => `<tr><td class="ps-4 fw-bold">${esc(j.nick)}</td><td>${esc(j.pais || "-")}</td></tr>`).join("") + `</tbody></table></div></div>` :
+            `<div class="bg-body-tertiary text-body-secondary text-center rounded-4 p-5">Este torneo todavía no tiene participantes.</div>`;
+    }
+
+    /* ===== FICHAS (ventana de detalle) ===== */
+    function abre(html) {
+        $("dlgBody").innerHTML = html;
+        modalDetalle.show();
+    }
+
+    function fichaJugador(id) {
+        const j = jugadores.find(x => x.id == id);
+        const ts = participaciones.filter(p => getJugId(p) == id).map(p => torneos.find(t => t.id == getTorId(p))).filter(Boolean);
+        abre(`<div class="d-flex align-items-center gap-3 mb-3">
+    <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary text-white fw-bolder fs-2" style="width:64px;height:64px" aria-hidden="true">${esc((j.nick || "?").charAt(0).toUpperCase())}</span>
+    <div><h3 class="h2 fw-bolder text-uppercase mb-0">${esc(j.nick)}</h3><div class="text-body-secondary">${esc(j.pais || "País sin indicar")}</div></div></div>
+  <h4 class="h6 fw-bold text-uppercase text-warning mt-4">Torneos en los que participa</h4>
+  ${ts.length ? ts.map(t => `<p class="mb-2">${esc(t.nombre)} ${badge(t.estado)}</p>`).join("") : `<p class="text-body-secondary">Aún no participa en ningún torneo.</p>`}`);
+    }
+
+    function fichaTorneo(id) {
+        const t = torneos.find(x => x.id == id);
+        abre(`<div class="rounded-3 overflow-hidden mb-3 position-relative">
+    <!-- IMAGEN: portada del torneo en la ventana de detalle (aprox. 480x270). Sustituir el div.ratio por <img src="img/torneo.jpg" alt="Portada del torneo" class="w-100 object-fit-cover" width="480" height="270"> -->
+        ${portada(vjDe(t).nombre)}<div class="position-absolute top-0 start-0 m-3">${badge(t.estado)}</div></div>
+        <h3 class="h2 fw-bolder text-uppercase lh-1">${esc(t.nombre)}</h3>
+        <div class="row g-3 my-2">
+        <div class="col-6"><div class="small text-uppercase text-body-secondary">Fecha</div><div class="fw-bold"><i class="bi bi-calendar-event me-1"></i>${fechaEs(t.fecha)}</div></div>
+        <div class="col-6"><div class="small text-uppercase text-body-secondary">Premio</div><div class="fw-bolder fs-4 text-warning lh-1">${esc(t.premio || "Sin definir")}</div></div>
+        <div class="col-6"><div class="small text-uppercase text-body-secondary">Videojuego</div><div class="fw-bold"><i class="bi bi-controller me-1"></i>${esc(vjDe(t).nombre)}</div></div>
+        <div class="col-6"><div class="small text-uppercase text-body-secondary">Inscritos</div><div class="fw-bold"><i class="bi bi-people me-1"></i>${inscritos(id)} participantes</div></div>
+        </div>
+        <div class="mt-4">${t.estado === "ABIERTO" ? `<button class="btn btn-success btn-lg text-uppercase fw-bold" onclick="irInscribir(${t.id})">Inscribirme en este torneo</button>` : `<p class="text-body-secondary mb-0">Este torneo ya no admite inscripciones.</p>`}</div>`);
+    }
+
+    function refresca() {
+        const vj = $("fVj").value;
+        pintaSelects();
+        $("fVj").value = vj;
+        pintaInicio();
+        pintaJugadores();
+        pintaVideojuegos();
+        pintaTorneos();
+        pintaFiltros();
+        if (jugadores.length > 0) consultaJugador();
+        if (torneos.length > 0) consultaTorneo();
+    }
+
+    // Arranque inicial
+    $("listaTorneos").innerHTML = esqueleto();
+    cargarDatosAPI();
+    ruta();
+</script>
+</body>
+</html>
